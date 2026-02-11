@@ -717,14 +717,20 @@
     place-items:center;
     width:100%;
     height:100%;
+    overflow:hidden;
+    border-radius:inherit;
   }
-  .card-loss-wrap .loss-crack{
-    position:absolute;
-    inset:0;
+  .card-loss-wrap > img{
     width:100%;
     height:100%;
     object-fit:contain;
     object-position:center;
+    display:block;
+    transform:none !important;
+  }
+  .card-loss-wrap .loss-crack{
+    position:absolute;
+    inset:0;
     pointer-events:none;
     z-index:3;
 
@@ -743,6 +749,19 @@
     100% { transform:translateX(0) rotate(0deg) scale(1.02); }
   }
 
+  /* 投票後の他プレイヤーカード（mini-card）では固定サイズで表示して拡大を防ぐ */
+  .mini-card > .card-loss-wrap{
+    position:absolute;
+    inset:0;
+    width:var(--card-w);
+    height:var(--card-h);
+  }
+  .mini-card > .card-loss-wrap > img{
+    width:var(--card-w);
+    height:var(--card-h);
+    max-width:var(--card-w);
+    max-height:var(--card-h);
+  }
 
 
 </style>
