@@ -120,12 +120,11 @@
   }
   .host-selecting-pop.hidden{display:none;}
 
-  /* ★ 右下：役職ガイド（黒ポップ白字） */
+  /* ★ 手札下：役職ガイド（黒ポップ白字） */
   .role-guide-pop{
-    position:fixed;
-    right:16px;
-    bottom:72px;
-    max-width:min(420px, calc(100vw - 32px));
+    width:fit-content;
+    max-width:min(420px, calc(100vw - 36px));
+    margin:10px auto 0;
     background:rgba(20,20,20,.94);
     color:#fff;
     border-radius:14px;
@@ -134,7 +133,7 @@
     font-size:12px;
     line-height:1.6;
     font-weight:800;
-    z-index:226;
+    text-align:left;
     white-space:pre-line;
     pointer-events:none;
   }
@@ -143,7 +142,7 @@
   /* ★ プレイヤー円配置用 */
   .player-circle{
     position:relative;width:260px;height:260px;
-    margin:20px auto 0;border-radius:50%;
+    margin:8px auto 0;border-radius:50%;
     box-sizing:border-box;border:none;
   }
   .player-circle::before{content:'';}
@@ -281,7 +280,7 @@
      ★ センター3枚（横並び）
      ========================= */
   .center-cards{
-    position:absolute;left:50%;top:65%;
+    position:absolute;left:50%;top:60%;
     transform:translate(-50%,-50%);
     display:flex;gap:0px;align-items:center;justify-content:center;
     z-index:5;
@@ -391,7 +390,7 @@
   .player-tag.vote-pulsing .mini-card:nth-child(3){ animation-delay:.14s; }
 
   /* 自分の手札 */
-  .my-hand-wrapper{margin-top:50px;text-align:center; position:relative;}
+  .my-hand-wrapper{margin-top:40px;text-align:center; position:relative;}
   .my-hand-title{display:none;}
   .my-hand{
     display:flex;
@@ -819,6 +818,10 @@
       <div class="my-hand-title">自分のカード</div>
       <div id="myHand" class="my-hand"></div>
     </div>
+
+    <div id="roleGuidePop" class="role-guide-pop hidden" aria-hidden="true">うらないし：COしていないプレイヤーのカードを見る。
+れいばいし：真ん中のカードを1枚見る。
+　ごえい　：COしたプレイヤーのカードを見る。</div>
   </div>
 </main>
 
@@ -844,10 +847,6 @@
 <button id="hostSettingsBtn" class="host-settings-btn" title="設定">⚙</button>
 
 <button id="helpBtn" class="help-btn" title="正体カード一覧">？</button>
-
-<div id="roleGuidePop" class="role-guide-pop hidden" aria-hidden="true">うらないし：COしていないプレイヤーのカードを見る。
-れいばいし：真ん中のカードを1枚見る。
-　ごえい　：COしたプレイヤーのカードを見る。</div>
 
 <div id="helpBackdrop" class="help-pop-backdrop hidden">
   <div class="help-pop" role="dialog" aria-modal="true" aria-label="正体カード一覧">
