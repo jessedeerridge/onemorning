@@ -559,6 +559,7 @@
     color:#111;
     box-shadow:0 10px 20px rgba(0,0,0,.08);
     min-width:0;
+    white-space:pre-line;
   }
   .help-desc .sub{
     display:block;
@@ -2189,7 +2190,7 @@ function renderHelpList(){
   const row1 = ALL_CARDS.slice(0, 5);
   row1.forEach(addCard);
 
-  grid.appendChild(createHelpDesc('「おおかみ」が一匹でも追放できていること。「おおかみ」がいなければ「きょうじん」を追放できていること。「きつね」が生存していないこと。', 1, 5));
+  grid.appendChild(createHelpDesc('「おおかみ」が一匹でも追放できていること。\n「おおかみ」がいなければ「きょうじん」を追放できていること。\n「きつね」が生存していないこと。', 1, 5));
   grid.appendChild(createHelpDesc('一票でも投票されていること。', 5, 6));
 
   // 2行目（6〜10枚目）
