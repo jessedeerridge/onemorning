@@ -181,6 +181,7 @@
   .my-card{
     /* 自分の手札は枠内に収める（画像はみ出し防止） */
     overflow:hidden !important;
+    padding:0 !important;
   }
   .help-card{
     /* ヘルプは演出用の余白を保持 */
@@ -191,9 +192,14 @@
   .help-card img{
     width:100% !important;
     height:100% !important;
+    max-width:100%;
+    max-height:100%;
     object-fit:contain !important;
     object-position:center !important;
     display:block;
+  }
+  .my-card img{
+    border-radius:inherit;
   }
 
   /* =========================
