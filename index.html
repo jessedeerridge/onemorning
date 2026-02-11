@@ -172,17 +172,25 @@
 
   /* =========================
      ✅ 画像が「切れる」対策（自分/ヘルプ）
+     - 原因: 以前の共通paddingで「自分のカードの見た目」だけ小さくなっていた
      ========================= */
   .my-card,
   .help-card{
+    box-sizing:border-box;
+  }
+  .my-card{
+    overflow:hidden !important;
+    padding:0;
+  }
+  .help-card{
     overflow:visible !important;
     padding:2px;
-    box-sizing:border-box;
   }
   .my-card img,
   .help-card img{
-    width:100% !important;
+    width:auto !important;
     height:100% !important;
+    max-width:100% !important;
     object-fit:contain !important;
     object-position:center !important;
     display:block;
@@ -272,8 +280,9 @@
     user-select:none;
   }
   .center-card img{
-    width:100%;
+    width:auto;
     height:100%;
+    max-width:100%;
     object-fit:contain;
     object-position:center;
     display:block;
@@ -332,8 +341,9 @@
     will-change: transform;
   }
   .mini-card img{
-    width:100%;
+    width:auto;
     height:100%;
+    max-width:100%;
     object-fit:contain;
     object-position:center;
     display:block;
