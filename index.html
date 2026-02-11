@@ -35,7 +35,7 @@
 
   /* ✅ 追加：カードサイズ統一（他プレイヤー手札 / センター / 自分手札） */
   :root{
-    --card-w: 90px;
+    --card-w: 70px;
     --card-h: 120px;
   }
 
@@ -176,10 +176,18 @@
   .my-card,
   .help-card{
     overflow:visible !important;
-    padding:2px;
     box-sizing:border-box;
   }
-  .my-card img,
+  .help-card{
+    padding:2px;
+  }
+  .my-card img{
+    width:92% !important;
+    height:100% !important;
+    object-fit:contain !important;
+    object-position:center !important;
+    display:block;
+  }
   .help-card img{
     width:100% !important;
     height:100% !important;
@@ -255,7 +263,7 @@
   .center-cards{
     position:absolute;left:50%;top:65%;
     transform:translate(-50%,-50%);
-    display:flex;gap:10px;align-items:center;justify-content:center;
+    display:flex;gap:0px;align-items:center;justify-content:center;
     z-index:5;
     pointer-events:none;
   }
@@ -363,7 +371,7 @@
   .player-tag.vote-pulsing .mini-card:nth-child(3){ animation-delay:.14s; }
 
   /* 自分の手札 */
-  .my-hand-wrapper{margin-top:26px;text-align:center; position:relative;}
+  .my-hand-wrapper{margin-top:50px;text-align:center; position:relative;}
   .my-hand-title{display:none;}
   .my-hand{
     display:flex;
@@ -2240,7 +2248,7 @@ function renderPlayerCircle(players){
   renderCenterCardsInto(playerCircle);
 
   const n = players.length;
-  const radius = 55;
+  const radius = 65;
   const step = (2 * Math.PI) / n;
   const anchorAngle = Math.PI / 2;
   const meIndex = players.findIndex(p => p.id === state.userId);
