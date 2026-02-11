@@ -711,6 +711,30 @@
     border-radius:16px;
   }
 
+  .card-loss-wrap{
+    position:relative;
+    display:grid;
+    place-items:center;
+    width:100%;
+    height:100%;
+  }
+  .card-loss-wrap .loss-crack{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    object-position:center;
+    pointer-events:none;
+    z-index:3;
+
+  }
+  .card-loss-wrap > img:last-child,
+  .card-loss-wrap > .card-image{
+    position:relative;
+    z-index:1;
+  }
+
   @keyframes shakeTiny{
     0%   { transform:translateX(0) rotate(0deg) scale(1.02); }
     25%  { transform:translateX(-2px) rotate(-1deg) scale(1.02); }
@@ -718,6 +742,9 @@
     75%  { transform:translateX(-1px) rotate(0.5deg) scale(1.02); }
     100% { transform:translateX(0) rotate(0deg) scale(1.02); }
   }
+
+
+
 </style>
 </head>
 <body>
@@ -1475,11 +1502,83 @@ function computeVoteCounts(players){
   return counts;
 }
 function computeWinnersFromCounts(players, counts){
-  const ids = (players || []).map(p => p.id);
+  const normalizedPlayers = (players || []).map(p => ({ ...p, id: String(p.id) }));
+  const ids = normalizedPlayers.map(p => p.id);
+  const handMap = {};
+  ids.forEach(id => {
+    const hand = state.hands && state.hands[id];
+    handMap[id] = (hand && Array.isArray(hand.cards) && hand.cards[0]) ? String(hand.cards[0]) : null;
+  });
+
   let max = -1;
   ids.forEach(id => { max = Math.max(max, Number(counts?.[id] ?? 0)); });
-  if (max <= 0) return [];
-  return ids.filter(id => Number(counts?.[id] ?? 0) === max);
+  const mostVotedIds = ids.filter(id => Number(counts?.[id] ?? 0) === max);
+
+  const idsByCard = (cardName) => ids.filter(id => handMap[id] === String(cardName));
+  const winnerSet = new Set();
+
+  const foxIds = idsByCard('きつね');
+  const uranaishiIds = new Set(idsByCard('うらないし'));
+  const roshutsuIds = idsByCard('ろしゅつきょう');
+  const ushiIds = idsByCard('うし');
+  const wolfIds = idsByCard('おおかみ');
+  const kyoujinIds = idsByCard('きょうじん');
+  const villagerTeamIds = [
+    ...idsByCard('むらびと'),
+    ...idsByCard('うらないし'),
+    ...idsByCard('れいばいし'),
+    ...idsByCard('ごえい')
+  ];
+
+  roshutsuIds.forEach(pid => {
+    const pr = getPublicRevealFor(pid);
+    const byOther = !!(pr && pr.byPlayerId && String(pr.byPlayerId) !== String(pid));
+    if (byOther) winnerSet.add(pid);
+  });
+
+  ushiIds.forEach(pid => {
+    if (Number(counts?.[pid] ?? 0) >= 1) winnerSet.add(pid);
+  });
+
+  let foxWon = false;
+  foxIds.forEach(pid => {
+    const pr = getPublicRevealFor(pid);
+    const seenByOther = !!(pr && pr.byPlayerId && String(pr.byPlayerId) !== String(pid));
+    const foxVoteTarget = state.votes?.[pid]?.targetPlayerId ? String(state.votes[pid].targetPlayerId) : null;
+    const votedUranaishi = !!(foxVoteTarget && uranaishiIds.has(foxVoteTarget));
+    const foxIsMostVoted = mostVotedIds.includes(pid);
+
+    if (!seenByOther && !votedUranaishi && !foxIsMostVoted){
+      winnerSet.add(pid);
+      foxWon = true;
+    }
+  });
+
+  let wolfTeamWon = false;
+  let kyoujinOnlyWon = false;
+
+  if (!foxWon && wolfIds.length > 0){
+    const wolfIsMostVoted = wolfIds.some(pid => mostVotedIds.includes(pid));
+    if (!wolfIsMostVoted){
+      wolfIds.forEach(pid => winnerSet.add(pid));
+      kyoujinIds.forEach(pid => winnerSet.add(pid));
+      wolfTeamWon = true;
+    }
+  }
+
+  if (!foxWon && wolfIds.length === 0 && kyoujinIds.length > 0){
+    const kyoujinIsMostVoted = kyoujinIds.some(pid => mostVotedIds.includes(pid));
+    if (!kyoujinIsMostVoted){
+      kyoujinIds.forEach(pid => winnerSet.add(pid));
+      kyoujinOnlyWon = true;
+    }
+  }
+
+  if (!foxWon && !wolfTeamWon && !kyoujinOnlyWon){
+    villagerTeamIds.forEach(pid => winnerSet.add(pid));
+  }
+
+  return Array.from(winnerSet);
 }
 async function setMyVote(targetPlayerId){
   if (!state.roomCode) return;
@@ -1509,65 +1608,32 @@ async function maybeHostFinalizeVote(players){
   });
 }
 
-/* =========================
-   ✅ きつね追加表示ルール（既存）
-   ========================= */
-function findPlayerIdByHandCardName(cardName){
-  const hands = state.hands || {};
-  for (const [pid, hand] of Object.entries(hands)){
-    const nm = (hand && Array.isArray(hand.cards) && hand.cards[0]) ? String(hand.cards[0]) : null;
-    if (nm === String(cardName)) return String(pid);
-  }
-  return null;
-}
-function getFoxExtraForVoteResult(winnerIds){
-  const winners = (winnerIds || []).map(String);
-
-  const foxId = findPlayerIdByHandCardName('きつね');
-  const uranaiHolderId = findPlayerIdByHandCardName('うらないし');
-
-  if (!foxId || !uranaiHolderId) return null;
-
-  const foxVote = state.votes?.[foxId]?.targetPlayerId ? String(state.votes[foxId].targetPlayerId) : null;
-  if (!foxVote || foxVote !== uranaiHolderId) return null;
-
-  if (!winners.includes(uranaiHolderId)) return null;
-
-  return foxId;
-}
-
 function hideVoteResultOverlay(){
   voteResultOverlay.classList.remove('visible');
   voteResultRow.innerHTML = '';
 }
-function showVoteResultOverlay(winnerIds){
-  voteResultRow.innerHTML = '';
 
-  const baseWinners = (winnerIds || []).map(String);
-  if (!baseWinners.length) return;
+function buildCardWithOptionalLoss(cardName, isLoser){
+  const base = buildCardImg(cardImgSrcByName(cardName), cardName);
+  if (!isLoser) return base;
 
-  const foxExtraId = getFoxExtraForVoteResult(baseWinners);
-  const displayIds = baseWinners.slice(0);
-  if (foxExtraId && !displayIds.includes(String(foxExtraId))){
-    displayIds.push(String(foxExtraId));
+  const wrap = document.createElement('div');
+  wrap.className = 'card-loss-wrap';
+
+  const crack = buildCardImg('hibi.png', 'hibi');
+  crack.className = 'loss-crack';
+
+  wrap.appendChild(crack);
+  wrap.appendChild(base);
+  return wrap;
+}
+
+function getVoteWinnerIds(players){
+  if (state.room && Array.isArray(state.room.voteWinners) && state.room.voteWinners.length){
+    return state.room.voteWinners.map(String);
   }
-
-  displayIds.forEach(pid => {
-    const hand = state.hands && state.hands[pid];
-    const cardName = (hand && Array.isArray(hand.cards) && hand.cards[0]) ? String(hand.cards[0]) : null;
-    if (!cardName) return;
-
-    const card = document.createElement('div');
-    card.className = 'vote-result-card';
-    card.appendChild(buildCardImg(cardImgSrcByName(cardName), cardName));
-    voteResultRow.appendChild(card);
-  });
-
-  if (!voteResultRow.childElementCount) return;
-
-  voteResultOverlay.classList.add('visible');
-
-  setTimeout(() => hideVoteResultOverlay(), 2000);
+  const counts = (state.room && state.room.voteCounts) ? state.room.voteCounts : computeVoteCounts(players || latestPlayers || []);
+  return computeWinnersFromCounts(players || latestPlayers || [], counts).map(String);
 }
 
 /* ===== 役職判定 ===== */
@@ -1663,9 +1729,7 @@ function subscribeRoom(){
     const voteDoneAt = roomData.voteDoneAt ? Number(roomData.voteDoneAt) : null;
     if (voteDoneAt && voteDoneAt !== lastVoteDoneAtSeen){
       lastVoteDoneAtSeen = voteDoneAt;
-
-      const winners = Array.isArray(roomData.voteWinners) ? roomData.voteWinners : [];
-      showVoteResultOverlay(winners);
+      hideVoteResultOverlay();
 
       setTimeout(() => { if (latestPlayers.length) renderAll(latestPlayers); }, 0);
     }
@@ -1733,6 +1797,8 @@ function renderMyHand(){
 
   const voteDone = !!(state.room && state.room.voteDoneAt);
   const myPublic = getPublicRevealFor(state.userId);
+  const winnerSet = voteDone ? new Set(getVoteWinnerIds(latestPlayers).map(String)) : new Set();
+  const isLoserAfterVote = voteDone && !winnerSet.has(String(state.userId));
 
   handData.cards.forEach(v => {
     const card = document.createElement('div');
@@ -1740,7 +1806,7 @@ function renderMyHand(){
     card.setAttribute('data-my-card', '1');
 
     const nameToShow = myPublic ? String(myPublic.cardName) : String(v);
-    card.appendChild(buildCardImg(cardImgSrcByName(nameToShow), nameToShow));
+    card.appendChild(buildCardWithOptionalLoss(nameToShow, isLoserAfterVote));
 
     if (isMyIdentityRevealedByEffect()){
       card.classList.add('public-revealed-outline');
@@ -1990,7 +2056,9 @@ function renderCenterCardsInto(container){
     const shouldShowFrontForReibaishiPick =
       (!voteDone && !votingOpen && isMeReibaishi() && iPicked === i && center[i] != null);
 
-    if (forceShowForbidden){
+    if (voteDone && center[i] != null){
+      c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
+    } else if (forceShowForbidden){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
     } else if (shouldShowFrontForReibaishiPick){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
@@ -2260,6 +2328,7 @@ function renderPlayerCircle(players){
   const myVoteTarget = getMyVoteTargetId();
 
   const voteCounts = (voteDone || allVoted) ? (state.room.voteCounts || computeVoteCounts(players)) : null;
+  const voteWinnerSet = (voteDone || allVoted) ? new Set(getVoteWinnerIds(players).map(String)) : new Set();
 
   const myGoeiTarget = getMyGoeiPickTargetId();
   const goeiCanPick  = (!votingOpen && !voteDone) && canMePickGoeiNow();
@@ -2368,7 +2437,8 @@ function renderPlayerCircle(players){
 
         if (showFront){
           const nameToShow = pub ? String(pub.cardName) : String(v);
-          card.appendChild(buildCardImg(cardImgSrcByName(nameToShow), nameToShow));
+          const isLoser = (voteDone || allVoted) && !voteWinnerSet.has(String(p.id));
+          card.appendChild(buildCardWithOptionalLoss(nameToShow, isLoser));
         } else {
           card.appendChild(buildCardImg(BACK_IMAGE, 'back'));
         }
