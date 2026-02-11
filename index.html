@@ -1520,6 +1520,22 @@ function getMyVoteTargetId(){
 }
 function haveIVoted(){ return !!getMyVoteTargetId(); }
 
+function isFoxSeenByOther(playerId){
+  const pid = String(playerId);
+  const hand = state.hands && state.hands[pid];
+  const cardName = (hand && Array.isArray(hand.cards) && hand.cards[0]) ? String(hand.cards[0]) : null;
+  if (cardName !== 'きつね') return false;
+
+  const pr = getPublicRevealFor(pid);
+  return !!(pr && pr.byPlayerId && String(pr.byPlayerId) !== pid);
+}
+function canPlayerVote(playerId){
+  return !isFoxSeenByOther(playerId);
+}
+function canPlayerBeVoteTarget(playerId){
+  return !isFoxSeenByOther(playerId);
+}
+
 function isVotingOpenNow(){
   const t = state.timer;
   if (!t || !t.startAt || !t.durationSec) return false;
@@ -1531,7 +1547,8 @@ function isVotingOpenNow(){
 
 function areAllVoted(players){
   if (!players || !players.length) return false;
-  const voterIds = new Set(players.map(p => p.id));
+  const voterIds = new Set(players.map(p => p.id).filter(id => canPlayerVote(id)));
+  if (!voterIds.size) return false;
   const votes = state.votes || {};
   for (const id of voterIds){
     if (!votes[id] || !votes[id].targetPlayerId) return false;
@@ -1631,6 +1648,8 @@ function computeWinnersFromCounts(players, counts){
 }
 async function setMyVote(targetPlayerId){
   if (!state.roomCode) return;
+  if (!canPlayerVote(state.userId)) return;
+  if (!canPlayerBeVoteTarget(targetPlayerId)) return;
   if (haveIVoted()) return;
   if (!isVotingOpenNow()) return;
   await set(ref(db, `rooms/${state.roomCode}/votes/${state.userId}`), {
@@ -2376,6 +2395,7 @@ function renderPlayerCircle(players){
   const voteDone = !!(state.room && state.room.voteDoneAt);
   const allVoted = areAllVoted(players);
   const iVoted = haveIVoted();
+  const iCanVote = canPlayerVote(state.userId);
   const myVoteTarget = getMyVoteTargetId();
 
   const voteCounts = (voteDone || allVoted) ? (state.room.voteCounts || computeVoteCounts(players)) : null;
@@ -2443,7 +2463,13 @@ function renderPlayerCircle(players){
       const spread = 70;
       const base = (count > 1) ? (-spread/2) : 0;
 
-      const canVotePick = votingOpen && !voteDone && !allVoted && !iVoted && (p.id !== state.userId);
+      const canVotePick = votingOpen
+        && !voteDone
+        && !allVoted
+        && iCanVote
+        && !iVoted
+        && (p.id !== state.userId)
+        && canPlayerBeVoteTarget(p.id);
       if (canVotePick){
         tag.classList.add('vote-pulsing', 'vote-selectable');
       }
