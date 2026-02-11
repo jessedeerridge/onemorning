@@ -177,19 +177,22 @@
      ========================= */
   .my-card,
   .help-card{
-    overflow:hidden;
+    overflow:visible;
     padding:0;
     box-sizing:border-box;
   }
   .my-card img,
-  .help-card img{
-    width:100% !important;
-    height:100% !important;
-    object-fit:contain !important;
-    object-position:center !important;
+  .help-card img,
+  .mini-card img,
+  .center-card img{
+    width:auto;
+    height:100%;
     max-width:100%;
     max-height:100%;
+    object-fit:contain;
+    object-position:center;
     display:block;
+    margin-inline:auto;
   }
 
   /* =========================
@@ -387,7 +390,6 @@
     user-select:none;
     display:grid;
     place-items:center;
-    overflow:hidden;
   }
 
   /* ★ 追い出し確認ダイアログ */
