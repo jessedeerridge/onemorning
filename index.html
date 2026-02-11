@@ -184,13 +184,23 @@
     overflow:visible !important;
     padding:2px;
   }
-  .my-card img,
+  .my-card img{
+    width:100% !important;
+    height:100% !important;
+    object-fit:contain !important;
+    object-position:center center !important;
+    display:block;
+  }
   .help-card img{
     width:100% !important;
     height:100% !important;
     object-fit:contain !important;
     object-position:center !important;
     display:block;
+  }
+
+  .my-hand{
+    align-items:flex-start;
   }
 
   /* =========================
