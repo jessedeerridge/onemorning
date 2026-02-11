@@ -2370,7 +2370,8 @@ function renderPlayerCircle(players){
     tag.setAttribute('data-player-id', p.id);
 
     const b = state.bubbles && state.bubbles[p.id];
-    if (b && b.text){
+    const shouldShowBubble = !(voteDone || allVoted);
+    if (shouldShowBubble && b && b.text){
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
       bubble.textContent = b.text;
