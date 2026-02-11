@@ -1519,6 +1519,9 @@ function getMyVoteTargetId(){
   return v?.targetPlayerId ? String(v.targetPlayerId) : null;
 }
 function haveIVoted(){ return !!getMyVoteTargetId(); }
+function isMeSeated(){
+  return Number.isInteger(state.seatedTable) && state.seatedTable >= 1;
+}
 
 function isFoxSeenByOther(playerId){
   const pid = String(playerId);
@@ -1530,7 +1533,10 @@ function isFoxSeenByOther(playerId){
   return !!(pr && pr.byPlayerId && String(pr.byPlayerId) !== pid);
 }
 function canPlayerVote(playerId){
-  return !isFoxSeenByOther(playerId);
+  const pid = String(playerId);
+  const seated = latestPlayers.some(p => String(p.id) === pid);
+  if (!seated) return false;
+  return !isFoxSeenByOther(pid);
 }
 function canPlayerBeVoteTarget(playerId){
   return !isFoxSeenByOther(playerId);
@@ -1648,6 +1654,7 @@ function computeWinnersFromCounts(players, counts){
 }
 async function setMyVote(targetPlayerId){
   if (!state.roomCode) return;
+  if (!isMeSeated()) return;
   if (!canPlayerVote(state.userId)) return;
   if (!canPlayerBeVoteTarget(targetPlayerId)) return;
   if (haveIVoted()) return;
@@ -1674,6 +1681,91 @@ async function maybeHostFinalizeVote(players){
     voteCounts: counts,
     voteWinners: winners
   });
+}
+
+function openKickDialogForSeatSteal(targetPlayer){
+  if (!targetPlayer) return;
+  pendingSeatIndexToSteal = Number(targetPlayer.seatIndex);
+  pendingSeatPlayerIdToSteal = String(targetPlayer.id);
+  kickMessage.textContent = `「${targetPlayer.name || '名無し'}」を追い出して、着席しますか？`;
+  kickDialog.classList.remove('hidden');
+}
+function closeKickDialog(){
+  kickDialog.classList.add('hidden');
+  pendingSeatIndexToSteal = null;
+  pendingSeatPlayerIdToSteal = null;
+}
+
+async function stealSeatWithStateTransfer(){
+  if (!state.roomCode) return;
+  if (!Number.isInteger(pendingSeatIndexToSteal) || pendingSeatIndexToSteal < 1) return;
+
+  const seatIndex = Number(pendingSeatIndexToSteal);
+  const oldPlayerId = pendingSeatPlayerIdToSteal ? String(pendingSeatPlayerIdToSteal) : null;
+  if (!oldPlayerId || oldPlayerId === state.userId) return;
+
+  const rootSnap = await get(ref(db, `rooms/${state.roomCode}`));
+  const roomData = rootSnap.val() || {};
+  const seatNow = roomData.tables?.[seatIndex] || null;
+  if (!seatNow || String(seatNow.playerId) !== oldPlayerId) return;
+
+  const updates = {};
+
+  if (isMeSeated()){
+    updates[`rooms/${state.roomCode}/tables/${state.seatedTable}`] = null;
+  }
+
+  updates[`rooms/${state.roomCode}/tables/${seatIndex}`] = {
+    playerId: state.userId,
+    playerName: state.userName || '名無し'
+  };
+
+  const copyNodes = [
+    'hands',
+    'bubbles',
+    'reibaishiPicks',
+    'goeiPicks',
+    'uranaishiPicks',
+    'votes',
+    'publicReveals'
+  ];
+
+  copyNodes.forEach(node => {
+    const fromVal = roomData?.[node]?.[oldPlayerId];
+    const toPath = `rooms/${state.roomCode}/${node}/${state.userId}`;
+    const fromPath = `rooms/${state.roomCode}/${node}/${oldPlayerId}`;
+
+    if (fromVal != null){
+      updates[toPath] = fromVal;
+    }
+    updates[fromPath] = null;
+  });
+
+  const votesAll = roomData?.votes || {};
+  Object.entries(votesAll).forEach(([voterId, voteVal]) => {
+    if (!voteVal || !voteVal.targetPlayerId) return;
+    if (String(voteVal.targetPlayerId) !== oldPlayerId) return;
+    updates[`rooms/${state.roomCode}/votes/${voterId}/targetPlayerId`] = state.userId;
+  });
+
+  const goeiAll = roomData?.goeiPicks || {};
+  Object.entries(goeiAll).forEach(([pickerId, pickVal]) => {
+    if (!pickVal || !pickVal.targetPlayerId) return;
+    if (String(pickVal.targetPlayerId) !== oldPlayerId) return;
+    updates[`rooms/${state.roomCode}/goeiPicks/${pickerId}/targetPlayerId`] = state.userId;
+  });
+
+  const uranaiAll = roomData?.uranaishiPicks || {};
+  Object.entries(uranaiAll).forEach(([pickerId, pickVal]) => {
+    if (!pickVal || !pickVal.targetPlayerId) return;
+    if (String(pickVal.targetPlayerId) !== oldPlayerId) return;
+    updates[`rooms/${state.roomCode}/uranaishiPicks/${pickerId}/targetPlayerId`] = state.userId;
+  });
+
+  await update(ref(db), updates);
+
+  state.seatedTable = seatIndex;
+  seatPop.classList.add('hidden');
 }
 
 function hideVoteResultOverlay(){
@@ -2072,6 +2164,20 @@ btnSeatCancel.onclick = () => {
   state.seatedTable = null;
 };
 
+btnKickNo.addEventListener('click', () => {
+  closeKickDialog();
+});
+btnKickYes.addEventListener('click', async () => {
+  try {
+    await stealSeatWithStateTransfer();
+  } finally {
+    closeKickDialog();
+  }
+});
+kickDialog.addEventListener('click', (e) => {
+  if (e.target === kickDialog) closeKickDialog();
+});
+
 /* ===== プレイヤー購読 ===== */
 function subscribePlayers(){
   onValue(ref(db, `rooms/${state.roomCode}/tables`), async snap => {
@@ -2420,6 +2526,12 @@ function renderPlayerCircle(players){
     tag.style.left = `${x}%`;
     tag.style.top = `${y}%`;
     tag.setAttribute('data-player-id', p.id);
+
+    if (!isMeSeated() && p.id !== state.userId){
+      tag.addEventListener('click', () => {
+        openKickDialogForSeatSteal(p);
+      });
+    }
 
     const b = state.bubbles && state.bubbles[p.id];
     const shouldShowBubble = !(voteDone || allVoted);
