@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>テンプレ</title>
+<title>ワンモーニング人狼</title>
 <style>
   html, body{height:100%; overflow:hidden;}
   body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#fff;color:#111;}
@@ -280,7 +280,7 @@
      ★ センター3枚（横並び）
      ========================= */
   .center-cards{
-    position:absolute;left:50%;top:66%;
+    position:absolute;left:50%;top:70%;
     transform:translate(-50%,-50%);
     display:flex;gap:0px;align-items:center;justify-content:center;
     z-index:5;
@@ -789,7 +789,7 @@
 <body>
 
 <header>
-  <h1>テンプレ</h1>
+  <h1>ワンモーニング人狼</h1>
   <div style="display:flex;align-items:center;gap:6px;">
     <div class="small" id="roomInfo"></div>
     <button class="btn ghost" id="copyLinkBtn">COPY</button>
@@ -1136,7 +1136,7 @@ function subscribeTimerConfig(){
   });
 }
 async function setTimerDurationSec(sec){
-  if (!state.roomCode) return;
+  if (!state.roomCode || !state.isHost) return;
   await set(ref(db, `rooms/${state.roomCode}/timerConfig`), {
     durationSec: Number(sec),
     updatedAt: Date.now(),
@@ -2203,28 +2203,30 @@ function renderHelpList(){
   grid.appendChild(createHelpDesc(`・きつねが追放されず残っていること`, 4, 4));
   grid.appendChild(createHelpDesc(`・議論中にカードを見られている`, 5, 6));
 
-  // タイマー設定カード（最後）
-  const timerCard = document.createElement('div');
-  timerCard.className = 'help-card timer-card';
-  timerCard.innerHTML = `
-    <div class="timer-title">タイマー設定</div>
-    <div class="timer-buttons">
-      <button class="tbtn" type="button" data-timer-sec="120">2:00</button>
-      <button class="tbtn" type="button" data-timer-sec="150">2:30</button>
-      <button class="tbtn" type="button" data-timer-sec="180">3:00</button>
-    </div>
-    <div class="timer-note">※次の開始に反映</div>
-  `;
-  grid.appendChild(timerCard);
+  if (state.isHost){
+    // タイマー設定カード（最後）
+    const timerCard = document.createElement('div');
+    timerCard.className = 'help-card timer-card';
+    timerCard.innerHTML = `
+      <div class="timer-title">タイマー設定</div>
+      <div class="timer-buttons">
+        <button class="tbtn" type="button" data-timer-sec="120">2:00</button>
+        <button class="tbtn" type="button" data-timer-sec="150">2:30</button>
+        <button class="tbtn" type="button" data-timer-sec="180">3:00</button>
+      </div>
+      <div class="timer-note">※次の開始に反映</div>
+    `;
+    grid.appendChild(timerCard);
 
-  timerCard.querySelectorAll('[data-timer-sec]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const sec = Number(btn.getAttribute('data-timer-sec'));
-      await setTimerDurationSec(sec);
-      syncHelpTimerSelectionUI();
+    timerCard.querySelectorAll('[data-timer-sec]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const sec = Number(btn.getAttribute('data-timer-sec'));
+        await setTimerDurationSec(sec);
+        syncHelpTimerSelectionUI();
+      });
     });
-  });
+  }
 
   helpBody.appendChild(grid);
   syncHelpTimerSelectionUI();
