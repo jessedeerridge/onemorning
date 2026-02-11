@@ -120,6 +120,26 @@
   }
   .host-selecting-pop.hidden{display:none;}
 
+  /* ★ 右下：役職ガイド（黒ポップ白字） */
+  .role-guide-pop{
+    position:fixed;
+    right:16px;
+    bottom:72px;
+    max-width:min(420px, calc(100vw - 32px));
+    background:rgba(20,20,20,.94);
+    color:#fff;
+    border-radius:14px;
+    padding:10px 12px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    font-size:12px;
+    line-height:1.6;
+    font-weight:800;
+    z-index:226;
+    white-space:pre-line;
+    pointer-events:none;
+  }
+  .role-guide-pop.hidden{display:none;}
+
   /* ★ プレイヤー円配置用 */
   .player-circle{
     position:relative;width:260px;height:260px;
@@ -825,6 +845,10 @@
 
 <button id="helpBtn" class="help-btn" title="正体カード一覧">？</button>
 
+<div id="roleGuidePop" class="role-guide-pop hidden" aria-hidden="true">うらないし：COしていないプレイヤーのカードを見る。
+れいばいし：真ん中のカードを1枚見る。
+　ごえい　：COしたプレイヤーのカードを見る。</div>
+
 <div id="helpBackdrop" class="help-pop-backdrop hidden">
   <div class="help-pop" role="dialog" aria-modal="true" aria-label="正体カード一覧">
     <div class="help-pop-header">
@@ -949,6 +973,7 @@ const btnGameStart = document.getElementById('btnGameStart');
 const btnResetRoom = document.getElementById('btnResetRoom');
 
 const helpBtn = document.getElementById('helpBtn');
+const roleGuidePop = document.getElementById('roleGuidePop');
 const helpBackdrop = document.getElementById('helpBackdrop');
 const btnHelpClose = document.getElementById('btnHelpClose');
 const helpBody = document.getElementById('helpBody');
@@ -1327,6 +1352,11 @@ function updateHostUI(){
   if (state.isHost) hostSettingsBtn.classList.add('visible');
   else { hostSettingsBtn.classList.remove('visible'); startPop.classList.add('hidden'); }
   helpBtn.classList.add('visible');
+}
+
+function updateRoleGuidePopVisibility(){
+  const isJoined = joinBox.classList.contains('hidden');
+  roleGuidePop.classList.toggle('hidden', !isJoined);
 }
 
 /* ===== bubbles ===== */
@@ -1908,6 +1938,7 @@ btnJoin.addEventListener('click', async () => {
   joinBox.classList.add('hidden');
   lobby.classList.remove('hidden');
   lobby.classList.add('entered');
+  updateRoleGuidePopVisibility();
 
   await restoreSeatFromDB();
 
