@@ -120,10 +120,29 @@
   }
   .host-selecting-pop.hidden{display:none;}
 
+  /* ★ 手札下：役職ガイド（黒ポップ白字） */
+  .role-guide-pop{
+    width:fit-content;
+    max-width:min(420px, calc(100vw - 36px));
+    margin:10px auto 0;
+    background:rgba(20,20,20,.94);
+    color:#fff;
+    border-radius:14px;
+    padding:10px 12px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    font-size:12px;
+    line-height:1.6;
+    font-weight:800;
+    text-align:left;
+    white-space:pre-line;
+    pointer-events:none;
+  }
+  .role-guide-pop.hidden{display:none;}
+
   /* ★ プレイヤー円配置用 */
   .player-circle{
     position:relative;width:260px;height:260px;
-    margin:20px auto 0;border-radius:50%;
+    margin:8px auto 0;border-radius:50%;
     box-sizing:border-box;border:none;
   }
   .player-circle::before{content:'';}
@@ -261,7 +280,7 @@
      ★ センター3枚（横並び）
      ========================= */
   .center-cards{
-    position:absolute;left:50%;top:65%;
+    position:absolute;left:50%;top:60%;
     transform:translate(-50%,-50%);
     display:flex;gap:0px;align-items:center;justify-content:center;
     z-index:5;
@@ -371,7 +390,7 @@
   .player-tag.vote-pulsing .mini-card:nth-child(3){ animation-delay:.14s; }
 
   /* 自分の手札 */
-  .my-hand-wrapper{margin-top:50px;text-align:center; position:relative;}
+  .my-hand-wrapper{margin-top:40px;text-align:center; position:relative;}
   .my-hand-title{display:none;}
   .my-hand{
     display:flex;
@@ -799,6 +818,10 @@
       <div class="my-hand-title">自分のカード</div>
       <div id="myHand" class="my-hand"></div>
     </div>
+
+    <div id="roleGuidePop" class="role-guide-pop hidden" aria-hidden="true">うらないし：COしていないプレイヤーのカードを見る。
+れいばいし：真ん中のカードを1枚見る。
+　ごえい　：COしたプレイヤーのカードを見る。</div>
   </div>
 </main>
 
@@ -949,6 +972,7 @@ const btnGameStart = document.getElementById('btnGameStart');
 const btnResetRoom = document.getElementById('btnResetRoom');
 
 const helpBtn = document.getElementById('helpBtn');
+const roleGuidePop = document.getElementById('roleGuidePop');
 const helpBackdrop = document.getElementById('helpBackdrop');
 const btnHelpClose = document.getElementById('btnHelpClose');
 const helpBody = document.getElementById('helpBody');
@@ -1327,6 +1351,11 @@ function updateHostUI(){
   if (state.isHost) hostSettingsBtn.classList.add('visible');
   else { hostSettingsBtn.classList.remove('visible'); startPop.classList.add('hidden'); }
   helpBtn.classList.add('visible');
+}
+
+function updateRoleGuidePopVisibility(){
+  const isJoined = joinBox.classList.contains('hidden');
+  roleGuidePop.classList.toggle('hidden', !isJoined);
 }
 
 /* ===== bubbles ===== */
@@ -1908,6 +1937,7 @@ btnJoin.addEventListener('click', async () => {
   joinBox.classList.add('hidden');
   lobby.classList.remove('hidden');
   lobby.classList.add('entered');
+  updateRoleGuidePopVisibility();
 
   await restoreSeatFromDB();
 
@@ -2370,7 +2400,8 @@ function renderPlayerCircle(players){
     tag.setAttribute('data-player-id', p.id);
 
     const b = state.bubbles && state.bubbles[p.id];
-    if (b && b.text){
+    const shouldShowBubble = !(voteDone || allVoted);
+    if (shouldShowBubble && b && b.text){
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
       bubble.textContent = b.text;
