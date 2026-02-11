@@ -172,12 +172,15 @@
 
   /* =========================
      ✅ 画像が「切れる」対策（自分/ヘルプ）
+     ※ 自分カードに padding を入れると見た目サイズが縮むため、padding は help のみに適用
      ========================= */
   .my-card,
   .help-card{
     overflow:visible !important;
-    padding:2px;
     box-sizing:border-box;
+  }
+  .help-card{
+    padding:2px;
   }
   .my-card img,
   .help-card img{
