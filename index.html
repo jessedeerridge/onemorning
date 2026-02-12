@@ -1859,8 +1859,8 @@ rolePickerBackdrop.querySelectorAll('.role-btn[data-role]').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (btn.classList.contains('disabled')) return;
     const role = btn.getAttribute('data-role');
-    await setMyBubble(role);
     closeRolePicker();
+    await setMyBubble(role);
   });
 });
 
