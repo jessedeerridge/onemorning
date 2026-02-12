@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ワンモーニング人狼</title>
 <style>
-  html, body{height:100%; overflow:hidden;}
+  html, body{height:100%; overflow:hidden; overflow-x:hidden;}
   body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#fff;color:#111;}
   header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #eee; position:sticky; top:0; z-index:400; background:#fff;}
   h1{margin:0;font-size:18px;}
@@ -24,7 +24,8 @@
   main{
     position:relative;
     height:calc(100vh - 60px);
-    overflow:auto;
+    overflow-y:auto;
+    overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     background-size:cover;
     background-position:center;
@@ -989,6 +990,8 @@ const voteResultRow = document.getElementById('voteResultRow');
 let timerTickId = null;
 let announceEl = null;
 let lastStartedAtSeen = null;
+let hasSeenInitialRoomSnapshot = false;
+let pendingStartAnnounceAt = null;
 let voteAnnouncedForStartAt = null;
 
 const VOTE_POP_MS = 2600;
@@ -1018,6 +1021,21 @@ function showAnnounce(text){
     if (el.parentNode) el.parentNode.removeChild(el);
     if (announceEl === el) announceEl = null;
   }, { once:true });
+}
+
+function hasAllSeatedHandsDealt(roomData){
+  const tables = roomData && roomData.tables ? roomData.tables : {};
+  const seatedPlayerIds = Object.values(tables)
+    .map(t => t && t.playerId ? String(t.playerId) : null)
+    .filter(Boolean);
+
+  if (!seatedPlayerIds.length) return false;
+
+  const hands = roomData && roomData.hands ? roomData.hands : {};
+  return seatedPlayerIds.every(pid => {
+    const cards = hands[pid] && Array.isArray(hands[pid].cards) ? hands[pid].cards : null;
+    return !!(cards && cards.length);
+  });
 }
 
 /* ===== 画像ユーティリティ：カード名.png ===== */
@@ -1877,13 +1895,26 @@ function subscribeRoom(){
     if (!helpBackdrop.classList.contains('hidden')) renderHelpList();
 
     const startedAt = roomData.startedAt ? Number(roomData.startedAt) : null;
-    if (startedAt && startedAt !== lastStartedAtSeen){
+    if (!hasSeenInitialRoomSnapshot){
+      hasSeenInitialRoomSnapshot = true;
+      lastStartedAtSeen = startedAt || null;
+    } else if (startedAt && startedAt !== lastStartedAtSeen){
       lastStartedAtSeen = startedAt;
+      pendingStartAnnounceAt = startedAt;
       voteAnnouncedForStartAt = null;
       lastVoteDoneAtSeen = null;
       hideVoteResultOverlay();
       forbiddenAnnouncedAtSeen = null; // ✅ 追加
+    }
+
+    const canAnnounceStart = (
+      !!pendingStartAnnounceAt &&
+      startedAt === pendingStartAnnounceAt &&
+      hasAllSeatedHandsDealt(roomData)
+    );
+    if (canAnnounceStart){
       showAnnounce('議論開始！');
+      pendingStartAnnounceAt = null;
     }
 
     const voteDoneAt = roomData.voteDoneAt ? Number(roomData.voteDoneAt) : null;
