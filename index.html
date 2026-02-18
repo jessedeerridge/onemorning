@@ -2325,8 +2325,8 @@ function renderHelpList(){
   grid.appendChild(createHelpDesc('・投票でおおかみが1匹も追放されていないこと\n・場におおかみが1匹もいなかった場合はきょうじんが追放されていないこと\n・プレイヤーの中にきつねが生存していないこと', 1, 4));
 
   const a = row2[2], b = row2[3], c2 = row2[4];
-  grid.appendChild(createHelpDesc(`・きつねが追放されず残っていること`, 4, 4));
-  grid.appendChild(createHelpDesc(`・議論中にカードを見られている`, 5, 6));
+  grid.appendChild(createHelpDesc(`・追放されず残っていること。占われたら即公開で負け。`, 4, 4));
+  grid.appendChild(createHelpDesc(`・カードを見られたら即公開で勝ち`, 5, 6));
 
   if (state.isHost){
     // タイマー設定カード（最後）
@@ -2790,4 +2790,5 @@ window.addEventListener('beforeunload', () => {
 
 </body>
 </html>
+
 
