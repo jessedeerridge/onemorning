@@ -24,8 +24,8 @@
   main{
     position:relative;
     height:calc(100vh - 60px);
-    overflow:auto;
-    -webkit-overflow-scrolling:touch;
+    overflow:hidden;
+    -webkit-overflow-scrolling:auto;
     background-size:cover;
     background-position:center;
     background-repeat:no-repeat;
@@ -319,6 +319,8 @@
   .center-cards.reibai-pulsing .center-card{ animation:pulseScale .9s ease-in-out infinite; }
   .center-cards.reibai-pulsing .center-card:nth-child(2){ animation-delay:.08s; }
   .center-cards.reibai-pulsing .center-card:nth-child(3){ animation-delay:.16s; }
+  .center-cards.reibai-pulsing .center-card.no-pulse{ animation:none !important; }
+  .center-cards.selectable .center-card.no-select{ cursor:default; pointer-events:none; }
 
   /* =========================
      ★ 他プレイヤー扇上手札（サイズ統一 90:120）
@@ -820,7 +822,7 @@
       <div id="myHand" class="my-hand"></div>
     </div>
 
-    <div id="roleGuidePop" class="role-guide-pop hidden" aria-hidden="true">うらないし：COしていないプレイヤーのカードを見る。
+    <div id="roleGuidePop" class="role-guide-pop hidden" aria-hidden="true">うらないし：COしていないプレイヤーのカードを見る。未選択かつ全員CO後は真ん中1枚も見られる。
 れいばいし：真ん中のカードを1枚見る。
 　ごえい　：COしたプレイヤーのカードを見る。</div>
   </div>
@@ -1407,8 +1409,19 @@ function subscribeUranaishiPicks(){
     if (latestPlayers.length) renderAll(latestPlayers);
   });
 }
-async function setMyUranaishiPick(targetPlayerId){
+async function setMyUranaishiPick(target){
   if (!state.roomCode) return;
+
+  if (target && Number.isInteger(target.centerIndex)){
+    const centerIndex = Number(target.centerIndex);
+    if (centerIndex < 0 || centerIndex > 2) return;
+    await set(ref(db, `rooms/${state.roomCode}/uranaishiPicks/${state.userId}`), { centerIndex, pickedAt: Date.now() });
+    return;
+  }
+
+  const targetPlayerId = (typeof target === 'string') ? target : target?.targetPlayerId;
+  if (!targetPlayerId) return;
+
   await set(ref(db, `rooms/${state.roomCode}/uranaishiPicks/${state.userId}`), { targetPlayerId, pickedAt: Date.now() });
   await maybePublishGlobalRevealFromSeeing(targetPlayerId);
 }
@@ -1924,6 +1937,15 @@ function getMyUranaishiPickTargetId(){
   const u = state.uranaishiPicks && state.uranaishiPicks[state.userId];
   return (u && u.targetPlayerId) ? u.targetPlayerId : null;
 }
+function getMyUranaishiPickCenterIndex(){
+  const u = state.uranaishiPicks && state.uranaishiPicks[state.userId];
+  return (u && Number.isInteger(u.centerIndex)) ? u.centerIndex : null;
+}
+
+function areAllPlayersDeclared(players){
+  if (!players || !players.length) return false;
+  return players.every(p => !!getRoleOf(p.id));
+}
 
 function isMeReibaishi(){ return getMyRole() === 'れいばいし'; }
 function isMeGoei(){ return getMyRole() === 'ごえい'; }
@@ -1937,7 +1959,7 @@ function canMePickGoeiNow(){
   return isMeGoei() && !getMyGoeiPickTargetId();
 }
 function canMePickUranaishiNow(){
-  return isMeUranaishi() && !getMyUranaishiPickTargetId();
+  return isMeUranaishi() && !getMyUranaishiPickTargetId() && getMyUranaishiPickCenterIndex() === null;
 }
 
 function isMyIdentityRevealedByEffect(){
@@ -2213,9 +2235,22 @@ function renderCenterCardsInto(container){
   const voteDone = !!(state.room && state.room.voteDoneAt);
   const votingOpen = isVotingOpenNow();
 
+  const allDeclared = areAllPlayersDeclared(latestPlayers);
+  const uranaishiCenterPicked = getMyUranaishiPickCenterIndex();
+  const canUranaishiPickCenter = (!voteDone && !votingOpen)
+    && isMeUranaishi()
+    && canMePickUranaishiNow()
+    && allDeclared;
+  const reibaishiPickedIndexes = new Set(
+    Object.values(state.reibaishiPicks || {})
+      .map(v => (v && Number.isInteger(v.index)) ? Number(v.index) : null)
+      .filter(v => v !== null)
+  );
+
   if (!voteDone && !votingOpen){
     if (isMeReibaishi() && iPicked === null) wrap.classList.add('reibai-pulsing');
     if (canPick) wrap.classList.add('selectable');
+    if (canUranaishiPickCenter) wrap.classList.add('reibai-pulsing', 'selectable');
   }
 
   for(let i=0;i<3;i++){
@@ -2229,13 +2264,22 @@ function renderCenterCardsInto(container){
       !!(cp && cp.cardName === FORBIDDEN_CARD_NAME && Number(cp.index) === i && center[i] != null);
 
     const shouldShowFrontForReibaishiPick =
-      (!voteDone && !votingOpen && isMeReibaishi() && iPicked === i && center[i] != null);
+      (!voteDone && !votingOpen && reibaishiPickedIndexes.has(i) && center[i] != null);
+    const shouldShowFrontForUranaishiCenterPick =
+      (!voteDone && !votingOpen && isMeUranaishi() && uranaishiCenterPicked === i && center[i] != null);
+    const blockedForUranaishiCenterPick = canUranaishiPickCenter && reibaishiPickedIndexes.has(i);
+
+    if (blockedForUranaishiCenterPick){
+      c.classList.add('no-pulse', 'no-select');
+    }
 
     if (voteDone && center[i] != null){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
     } else if (forceShowForbidden){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
     } else if (shouldShowFrontForReibaishiPick){
+      c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
+    } else if (shouldShowFrontForUranaishiCenterPick){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
     } else {
       c.appendChild(buildCardImg(BACK_IMAGE, 'back'));
@@ -2246,6 +2290,13 @@ function renderCenterCardsInto(container){
         e.stopPropagation();
         if (!canMePickCenterNow()) return;
         await setMyReibaishiPick(i);
+      }, { passive: true });
+    } else if (!voteDone && !votingOpen && canUranaishiPickCenter && !blockedForUranaishiCenterPick) {
+      c.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!canMePickUranaishiNow()) return;
+        if (!areAllPlayersDeclared(latestPlayers)) return;
+        await setMyUranaishiPick({ centerIndex: i });
       }, { passive: true });
     }
 
@@ -2459,12 +2510,20 @@ function drawGlobalArrows(){
 
   const picksU = state.uranaishiPicks || {};
   for (const [pickerId, val] of Object.entries(picksU)){
-    if (!val || !val.targetPlayerId) continue;
+    if (!val) continue;
     if (pickerId === state.userId) continue;
 
     const fromTag = document.querySelector(`.player-tag[data-player-id="${CSS.escape(pickerId)}"]`);
     if (!fromTag) continue;
 
+    if (Number.isInteger(val.centerIndex)){
+      const to = document.querySelector(`.center-card[data-center-index="${val.centerIndex}"]`);
+      if (!to) continue;
+      line(globalArrowLayer, centerOfRect(fromTag.getBoundingClientRect()), centerOfRect(to.getBoundingClientRect()));
+      continue;
+    }
+
+    if (!val.targetPlayerId) continue;
     const targetId = val.targetPlayerId;
 
     if (targetId === state.userId){
