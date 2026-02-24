@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ワンモーニング人狼</title>
 <style>
-  html, body{height:100%; overflow:hidden;}
+  html, body{height:100%; overflow:hidden; overscroll-behavior:none;}
   body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#fff;color:#111;}
   header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #eee; position:sticky; top:0; z-index:400; background:#fff;}
   h1{margin:0;font-size:18px;}
@@ -24,7 +24,7 @@
   main{
     position:relative;
     height:calc(100vh - 60px);
-    overflow:auto;
+    overflow:hidden;
     -webkit-overflow-scrolling:touch;
     background-size:cover;
     background-position:center;
@@ -2206,6 +2206,7 @@ function renderCenterCardsInto(container){
   const center = (state.room && Array.isArray(state.room.centerCards)) ? state.room.centerCards : [];
   const wrap = document.createElement('div');
   wrap.className = 'center-cards';
+  const hasAnyReibaishiPick = !!Object.keys(state.reibaishiPicks || {}).length;
 
   const iPicked = getMyReibaishiPickIndex();
   const canPick = canMePickCenterNow();
@@ -2232,6 +2233,8 @@ function renderCenterCardsInto(container){
       (!voteDone && !votingOpen && isMeReibaishi() && iPicked === i && center[i] != null);
 
     if (voteDone && center[i] != null){
+      c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
+    } else if (hasAnyReibaishiPick && center[i] != null){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
     } else if (forceShowForbidden){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
