@@ -319,6 +319,8 @@
   .center-cards.reibai-pulsing .center-card{ animation:pulseScale .9s ease-in-out infinite; }
   .center-cards.reibai-pulsing .center-card:nth-child(2){ animation-delay:.08s; }
   .center-cards.reibai-pulsing .center-card:nth-child(3){ animation-delay:.16s; }
+  .center-cards.reibai-pulsing .center-card.no-pulse{ animation:none !important; }
+  .center-cards.selectable .center-card.no-select{ cursor:default; pointer-events:none; }
 
   /* =========================
      ★ 他プレイヤー扇上手札（サイズ統一 90:120）
@@ -2265,6 +2267,11 @@ function renderCenterCardsInto(container){
       (!voteDone && !votingOpen && reibaishiPickedIndexes.has(i) && center[i] != null);
     const shouldShowFrontForUranaishiCenterPick =
       (!voteDone && !votingOpen && isMeUranaishi() && uranaishiCenterPicked === i && center[i] != null);
+    const blockedForUranaishiCenterPick = canUranaishiPickCenter && reibaishiPickedIndexes.has(i);
+
+    if (blockedForUranaishiCenterPick){
+      c.classList.add('no-pulse', 'no-select');
+    }
 
     if (voteDone && center[i] != null){
       c.appendChild(buildCardImg(cardImgSrcByName(center[i]), String(center[i])));
@@ -2284,7 +2291,7 @@ function renderCenterCardsInto(container){
         if (!canMePickCenterNow()) return;
         await setMyReibaishiPick(i);
       }, { passive: true });
-    } else if (!voteDone && !votingOpen && canUranaishiPickCenter) {
+    } else if (!voteDone && !votingOpen && canUranaishiPickCenter && !blockedForUranaishiCenterPick) {
       c.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!canMePickUranaishiNow()) return;
