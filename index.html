@@ -160,7 +160,30 @@
     border-color:#111 !important;
   }
 
-  /* ★ 封筒バッジ（ネームタグの上に表示） */
+  /* ★ 投票者表示（ネームタグ右に縦積み） */
+  .voter-list{
+    position:absolute;
+    left:calc(100% + 8px);
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    align-items:flex-start;
+    pointer-events:none;
+  }
+  .voter-item{
+    font-weight:900;
+    font-size:12px;
+    line-height:1.15;
+    white-space:nowrap;
+    color:#111;
+    text-shadow:
+      0 0 2px rgba(255,255,255,.95),
+      0 2px 8px rgba(0,0,0,.25);
+  }
+
+  /* ★ 進行中の投票先マーカー（従来） */
   .envelope-badge{
     position:absolute;
     left:50%;
@@ -2565,6 +2588,16 @@ function renderPlayerCircle(players){
 
   const voteCounts = (voteDone || allVoted) ? (state.room.voteCounts || computeVoteCounts(players)) : null;
   const voteWinnerSet = (voteDone || allVoted) ? new Set(getVoteWinnerIds(players).map(String)) : new Set();
+  const playerNameById = new Map(players.map(p => [String(p.id), p.name]));
+  const votersByTarget = {};
+  Object.entries(state.votes || {}).forEach(([voterId, val]) => {
+    if (!val || !val.targetPlayerId) return;
+    const targetId = String(val.targetPlayerId);
+    const voterName = playerNameById.get(String(voterId));
+    if (!voterName) return;
+    if (!votersByTarget[targetId]) votersByTarget[targetId] = [];
+    votersByTarget[targetId].push(voterName);
+  });
 
   const myGoeiTarget = getMyGoeiPickTargetId();
   const goeiCanPick  = (!votingOpen && !voteDone) && canMePickGoeiNow();
@@ -2604,10 +2637,18 @@ function renderPlayerCircle(players){
     if (voteDone || allVoted){
       const c = Number(voteCounts?.[p.id] ?? 0);
       if (c > 0){
-        const badge = document.createElement('div');
-        badge.className = 'envelope-badge';
-        badge.textContent = '✉'.repeat(Math.min(20, c));
-        tag.appendChild(badge);
+        const voterNames = votersByTarget[String(p.id)] || [];
+        if (voterNames.length){
+          const voterList = document.createElement('div');
+          voterList.className = 'voter-list';
+          voterNames.forEach(name => {
+            const item = document.createElement('div');
+            item.className = 'voter-item';
+            item.textContent = `👈${name}`;
+            voterList.appendChild(item);
+          });
+          tag.appendChild(voterList);
+        }
       }
     } else {
       if (iVoted && myVoteTarget === p.id){
