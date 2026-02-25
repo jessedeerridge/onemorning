@@ -160,7 +160,32 @@
     border-color:#111 !important;
   }
 
-  /* ★ 封筒バッジ（ネームタグの上に表示） */
+  /* ★ 投票者表示（ネームタグ右に縦積み） */
+  .voter-list{
+    position:absolute;
+    left:calc(100% + 8px);
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    align-items:flex-start;
+    pointer-events:none;
+  }
+  .voter-item{
+    display:inline-flex;
+    align-items:center;
+    padding:4px 8px;
+    border-radius:999px;
+    border:1px solid #111;
+    background:#111;
+    color:#fff;
+    font-size:12px;
+    line-height:1;
+    white-space:nowrap;
+  }
+
+  /* ★ 進行中の投票先マーカー（従来） */
   .envelope-badge{
     position:absolute;
     left:50%;
@@ -847,6 +872,16 @@
   </div>
 </div>
 
+<div id="timerSkipDialog" class="dialog-backdrop hidden">
+  <div class="dialog-box" id="timerSkipDialogBox">
+    <p id="timerSkipMessage">スキップしますか？</p>
+    <div class="dialog-buttons">
+      <button class="btn ghost" id="btnTimerSkipNo">いいえ</button>
+      <button class="btn primary" id="btnTimerSkipYes">はい</button>
+    </div>
+  </div>
+</div>
+
 <button id="hostSettingsBtn" class="host-settings-btn" title="設定">⚙</button>
 
 <button id="helpBtn" class="help-btn" title="正体カード一覧">？</button>
@@ -962,11 +997,16 @@ const seatLabel = seatPop.querySelector('label');
 
 const playerCircle = document.getElementById('playerCircle');
 const myHandEl = document.getElementById('myHand');
+const roundTimer = document.getElementById('roundTimer');
 
 const kickDialog = document.getElementById('kickDialog');
 const kickMessage = document.getElementById('kickMessage');
 const btnKickYes = document.getElementById('btnKickYes');
 const btnKickNo = document.getElementById('btnKickNo');
+
+const timerSkipDialog = document.getElementById('timerSkipDialog');
+const btnTimerSkipNo = document.getElementById('btnTimerSkipNo');
+const btnTimerSkipYes = document.getElementById('btnTimerSkipYes');
 
 const hostSettingsBtn = document.getElementById('hostSettingsBtn');
 const startPop = document.getElementById('startPop');
@@ -1040,6 +1080,7 @@ let pendingSeatPlayerIdToSteal = null;
 let isRenderingSeatTabs = false;
 let latestPlayers = [];
 let rolePickerOpen = false;
+let timerLongPressId = null;
 
 function generateRoomCode(length = 6){
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -1163,6 +1204,50 @@ async function startConfiguredTimer(){
   const base = `rooms/${state.roomCode}`;
   await set(ref(db, `${base}/timer`), {
     startAt: Date.now(),
+    durationSec
+  });
+}
+
+function openTimerSkipDialog(){
+  timerSkipDialog.classList.remove('hidden');
+}
+function closeTimerSkipDialog(){
+  timerSkipDialog.classList.add('hidden');
+}
+function clearTimerLongPress(){
+  if (timerLongPressId){
+    clearTimeout(timerLongPressId);
+    timerLongPressId = null;
+  }
+}
+function onTimerPressStart(){
+  if (!state.isHost) return;
+  const t = state.timer;
+  if (!t || !t.startAt || !t.durationSec) return;
+  if (isVotingOpenNow()) return;
+  if (state.room && state.room.voteDoneAt) return;
+
+  clearTimerLongPress();
+  timerLongPressId = setTimeout(() => {
+    openTimerSkipDialog();
+  }, 650);
+}
+function onTimerPressEnd(){
+  clearTimerLongPress();
+}
+async function skipTimerToOneSecond(){
+  const t = state.timer;
+  if (!state.roomCode || !state.isHost || !t || !t.startAt || !t.durationSec) return;
+  if (isVotingOpenNow()) return;
+  if (state.room && state.room.voteDoneAt) return;
+
+  const durationSec = Number(t.durationSec);
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return;
+
+  const base = `rooms/${state.roomCode}`;
+  const startAt = Date.now() - Math.max(0, (durationSec - 1) * 1000);
+  await set(ref(db, `${base}/timer`), {
+    startAt,
     durationSec
   });
 }
@@ -1586,6 +1671,22 @@ function computeVoteCounts(players){
   }
   return counts;
 }
+function isEveryoneSingleVote(players, counts){
+  const normalizedPlayers = (players || []).map(p => ({ ...p, id: String(p.id) }));
+  if (!normalizedPlayers.length) return false;
+
+  const ids = normalizedPlayers.map(p => p.id);
+  const idSet = new Set(ids);
+  const votes = state.votes || {};
+
+  for (const id of ids){
+    if (Number(counts?.[id] ?? 0) !== 1) return false;
+    const targetId = votes[id]?.targetPlayerId ? String(votes[id].targetPlayerId) : null;
+    if (!targetId || !idSet.has(targetId)) return false;
+  }
+
+  return true;
+}
 function computeWinnersFromCounts(players, counts){
   const normalizedPlayers = (players || []).map(p => ({ ...p, id: String(p.id) }));
   const ids = normalizedPlayers.map(p => p.id);
@@ -1608,12 +1709,48 @@ function computeWinnersFromCounts(players, counts){
   const ushiIds = idsByCard('うし');
   const wolfIds = idsByCard('おおかみ');
   const kyoujinIds = idsByCard('きょうじん');
+  const mitenaikeIds = idsByCard('みてはいけないもの');
   const villagerTeamIds = [
     ...idsByCard('むらびと'),
     ...idsByCard('うらないし'),
     ...idsByCard('れいばいし'),
     ...idsByCard('ごえい')
   ];
+
+  const everyoneSingleVote = isEveryoneSingleVote(normalizedPlayers, counts);
+  if (everyoneSingleVote){
+    const foxInPlayers = foxIds.length > 0;
+    const wolfOrKyoujinInPlayers = (wolfIds.length > 0 || kyoujinIds.length > 0);
+
+    if (foxInPlayers){
+      const forcedLoserIds = new Set([
+        ...wolfIds,
+        ...kyoujinIds,
+        ...idsByCard('むらびと'),
+        ...idsByCard('れいばいし'),
+        ...idsByCard('うらないし'),
+        ...idsByCard('ごえい'),
+        ...mitenaikeIds,
+      ]);
+      ids.forEach(id => {
+        if (!forcedLoserIds.has(id)) winnerSet.add(id);
+      });
+      return Array.from(winnerSet);
+    }
+
+    if (!foxInPlayers && wolfOrKyoujinInPlayers){
+      const forcedLoserIds = new Set([
+        ...idsByCard('むらびと'),
+        ...idsByCard('れいばいし'),
+        ...idsByCard('うらないし'),
+        ...idsByCard('ごえい'),
+      ]);
+      ids.forEach(id => {
+        if (!forcedLoserIds.has(id)) winnerSet.add(id);
+      });
+      return Array.from(winnerSet);
+    }
+  }
 
   roshutsuIds.forEach(pid => {
     const pr = getPublicRevealFor(pid);
@@ -2200,6 +2337,25 @@ kickDialog.addEventListener('click', (e) => {
   if (e.target === kickDialog) closeKickDialog();
 });
 
+btnTimerSkipNo.addEventListener('click', () => {
+  closeTimerSkipDialog();
+});
+btnTimerSkipYes.addEventListener('click', async () => {
+  try {
+    await skipTimerToOneSecond();
+  } finally {
+    closeTimerSkipDialog();
+  }
+});
+timerSkipDialog.addEventListener('click', (e) => {
+  if (e.target === timerSkipDialog) closeTimerSkipDialog();
+});
+
+roundTimer.addEventListener('pointerdown', onTimerPressStart, { passive: true });
+roundTimer.addEventListener('pointerup', onTimerPressEnd, { passive: true });
+roundTimer.addEventListener('pointercancel', onTimerPressEnd, { passive: true });
+roundTimer.addEventListener('pointerleave', onTimerPressEnd, { passive: true });
+
 /* ===== プレイヤー購読 ===== */
 function subscribePlayers(){
   onValue(ref(db, `rooms/${state.roomCode}/tables`), async snap => {
@@ -2565,6 +2721,16 @@ function renderPlayerCircle(players){
 
   const voteCounts = (voteDone || allVoted) ? (state.room.voteCounts || computeVoteCounts(players)) : null;
   const voteWinnerSet = (voteDone || allVoted) ? new Set(getVoteWinnerIds(players).map(String)) : new Set();
+  const playerNameById = new Map(players.map(p => [String(p.id), p.name]));
+  const votersByTarget = {};
+  Object.entries(state.votes || {}).forEach(([voterId, val]) => {
+    if (!val || !val.targetPlayerId) return;
+    const targetId = String(val.targetPlayerId);
+    const voterName = playerNameById.get(String(voterId));
+    if (!voterName) return;
+    if (!votersByTarget[targetId]) votersByTarget[targetId] = [];
+    votersByTarget[targetId].push(voterName);
+  });
 
   const myGoeiTarget = getMyGoeiPickTargetId();
   const goeiCanPick  = (!votingOpen && !voteDone) && canMePickGoeiNow();
@@ -2604,10 +2770,18 @@ function renderPlayerCircle(players){
     if (voteDone || allVoted){
       const c = Number(voteCounts?.[p.id] ?? 0);
       if (c > 0){
-        const badge = document.createElement('div');
-        badge.className = 'envelope-badge';
-        badge.textContent = '✉'.repeat(Math.min(20, c));
-        tag.appendChild(badge);
+        const voterNames = votersByTarget[String(p.id)] || [];
+        if (voterNames.length){
+          const voterList = document.createElement('div');
+          voterList.className = 'voter-list';
+          voterNames.forEach(name => {
+            const item = document.createElement('div');
+            item.className = 'voter-item';
+            item.textContent = `👈${name}`;
+            voterList.appendChild(item);
+          });
+          tag.appendChild(voterList);
+        }
       }
     } else {
       if (iVoted && myVoteTarget === p.id){
