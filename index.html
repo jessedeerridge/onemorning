@@ -1671,6 +1671,22 @@ function computeVoteCounts(players){
   }
   return counts;
 }
+function isEveryoneSingleVote(players, counts){
+  const normalizedPlayers = (players || []).map(p => ({ ...p, id: String(p.id) }));
+  if (!normalizedPlayers.length) return false;
+
+  const ids = normalizedPlayers.map(p => p.id);
+  const idSet = new Set(ids);
+  const votes = state.votes || {};
+
+  for (const id of ids){
+    if (Number(counts?.[id] ?? 0) !== 1) return false;
+    const targetId = votes[id]?.targetPlayerId ? String(votes[id].targetPlayerId) : null;
+    if (!targetId || !idSet.has(targetId)) return false;
+  }
+
+  return true;
+}
 function computeWinnersFromCounts(players, counts){
   const normalizedPlayers = (players || []).map(p => ({ ...p, id: String(p.id) }));
   const ids = normalizedPlayers.map(p => p.id);
@@ -1693,12 +1709,48 @@ function computeWinnersFromCounts(players, counts){
   const ushiIds = idsByCard('うし');
   const wolfIds = idsByCard('おおかみ');
   const kyoujinIds = idsByCard('きょうじん');
+  const mitenaikeIds = idsByCard('みてはいけないもの');
   const villagerTeamIds = [
     ...idsByCard('むらびと'),
     ...idsByCard('うらないし'),
     ...idsByCard('れいばいし'),
     ...idsByCard('ごえい')
   ];
+
+  const everyoneSingleVote = isEveryoneSingleVote(normalizedPlayers, counts);
+  if (everyoneSingleVote){
+    const foxInPlayers = foxIds.length > 0;
+    const wolfOrKyoujinInPlayers = (wolfIds.length > 0 || kyoujinIds.length > 0);
+
+    if (foxInPlayers){
+      const forcedLoserIds = new Set([
+        ...wolfIds,
+        ...kyoujinIds,
+        ...idsByCard('むらびと'),
+        ...idsByCard('れいばいし'),
+        ...idsByCard('うらないし'),
+        ...idsByCard('ごえい'),
+        ...mitenaikeIds,
+      ]);
+      ids.forEach(id => {
+        if (!forcedLoserIds.has(id)) winnerSet.add(id);
+      });
+      return Array.from(winnerSet);
+    }
+
+    if (!foxInPlayers && wolfOrKyoujinInPlayers){
+      const forcedLoserIds = new Set([
+        ...idsByCard('むらびと'),
+        ...idsByCard('れいばいし'),
+        ...idsByCard('うらないし'),
+        ...idsByCard('ごえい'),
+      ]);
+      ids.forEach(id => {
+        if (!forcedLoserIds.has(id)) winnerSet.add(id);
+      });
+      return Array.from(winnerSet);
+    }
+  }
 
   roshutsuIds.forEach(pid => {
     const pr = getPublicRevealFor(pid);
