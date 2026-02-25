@@ -173,14 +173,17 @@
     pointer-events:none;
   }
   .voter-item{
+    display:inline-flex;
+    align-items:center;
+    padding:2px 7px;
+    border-radius:999px;
+    border:1px solid #111;
+    background:#111;
+    color:#fff;
     font-weight:900;
     font-size:12px;
     line-height:1.15;
     white-space:nowrap;
-    color:#111;
-    text-shadow:
-      0 0 2px rgba(255,255,255,.95),
-      0 2px 8px rgba(0,0,0,.25);
   }
 
   /* ★ 進行中の投票先マーカー（従来） */
@@ -870,6 +873,16 @@
   </div>
 </div>
 
+<div id="timerSkipDialog" class="dialog-backdrop hidden">
+  <div class="dialog-box" id="timerSkipDialogBox">
+    <p id="timerSkipMessage">スキップしますか？</p>
+    <div class="dialog-buttons">
+      <button class="btn ghost" id="btnTimerSkipNo">いいえ</button>
+      <button class="btn primary" id="btnTimerSkipYes">はい</button>
+    </div>
+  </div>
+</div>
+
 <button id="hostSettingsBtn" class="host-settings-btn" title="設定">⚙</button>
 
 <button id="helpBtn" class="help-btn" title="正体カード一覧">？</button>
@@ -985,11 +998,16 @@ const seatLabel = seatPop.querySelector('label');
 
 const playerCircle = document.getElementById('playerCircle');
 const myHandEl = document.getElementById('myHand');
+const roundTimer = document.getElementById('roundTimer');
 
 const kickDialog = document.getElementById('kickDialog');
 const kickMessage = document.getElementById('kickMessage');
 const btnKickYes = document.getElementById('btnKickYes');
 const btnKickNo = document.getElementById('btnKickNo');
+
+const timerSkipDialog = document.getElementById('timerSkipDialog');
+const btnTimerSkipNo = document.getElementById('btnTimerSkipNo');
+const btnTimerSkipYes = document.getElementById('btnTimerSkipYes');
 
 const hostSettingsBtn = document.getElementById('hostSettingsBtn');
 const startPop = document.getElementById('startPop');
@@ -1063,6 +1081,7 @@ let pendingSeatPlayerIdToSteal = null;
 let isRenderingSeatTabs = false;
 let latestPlayers = [];
 let rolePickerOpen = false;
+let timerLongPressId = null;
 
 function generateRoomCode(length = 6){
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -1186,6 +1205,50 @@ async function startConfiguredTimer(){
   const base = `rooms/${state.roomCode}`;
   await set(ref(db, `${base}/timer`), {
     startAt: Date.now(),
+    durationSec
+  });
+}
+
+function openTimerSkipDialog(){
+  timerSkipDialog.classList.remove('hidden');
+}
+function closeTimerSkipDialog(){
+  timerSkipDialog.classList.add('hidden');
+}
+function clearTimerLongPress(){
+  if (timerLongPressId){
+    clearTimeout(timerLongPressId);
+    timerLongPressId = null;
+  }
+}
+function onTimerPressStart(){
+  if (!state.isHost) return;
+  const t = state.timer;
+  if (!t || !t.startAt || !t.durationSec) return;
+  if (isVotingOpenNow()) return;
+  if (state.room && state.room.voteDoneAt) return;
+
+  clearTimerLongPress();
+  timerLongPressId = setTimeout(() => {
+    openTimerSkipDialog();
+  }, 650);
+}
+function onTimerPressEnd(){
+  clearTimerLongPress();
+}
+async function skipTimerToOneSecond(){
+  const t = state.timer;
+  if (!state.roomCode || !state.isHost || !t || !t.startAt || !t.durationSec) return;
+  if (isVotingOpenNow()) return;
+  if (state.room && state.room.voteDoneAt) return;
+
+  const durationSec = Number(t.durationSec);
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return;
+
+  const base = `rooms/${state.roomCode}`;
+  const startAt = Date.now() - Math.max(0, (durationSec - 1) * 1000);
+  await set(ref(db, `${base}/timer`), {
+    startAt,
     durationSec
   });
 }
@@ -2222,6 +2285,25 @@ btnKickYes.addEventListener('click', async () => {
 kickDialog.addEventListener('click', (e) => {
   if (e.target === kickDialog) closeKickDialog();
 });
+
+btnTimerSkipNo.addEventListener('click', () => {
+  closeTimerSkipDialog();
+});
+btnTimerSkipYes.addEventListener('click', async () => {
+  try {
+    await skipTimerToOneSecond();
+  } finally {
+    closeTimerSkipDialog();
+  }
+});
+timerSkipDialog.addEventListener('click', (e) => {
+  if (e.target === timerSkipDialog) closeTimerSkipDialog();
+});
+
+roundTimer.addEventListener('pointerdown', onTimerPressStart, { passive: true });
+roundTimer.addEventListener('pointerup', onTimerPressEnd, { passive: true });
+roundTimer.addEventListener('pointercancel', onTimerPressEnd, { passive: true });
+roundTimer.addEventListener('pointerleave', onTimerPressEnd, { passive: true });
 
 /* ===== プレイヤー購読 ===== */
 function subscribePlayers(){
